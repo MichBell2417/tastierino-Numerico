@@ -8,9 +8,9 @@
         {
             "name": "PlatformIO",
             "includePath": [
-                "c:/Users/belmi/Desktop/Archivio/Archivio codici/sistemaDIngressoCamera/tastierinoNumerico/include",
-                "c:/Users/belmi/Desktop/Archivio/Archivio codici/sistemaDIngressoCamera/tastierinoNumerico/src",
-                "c:/Users/belmi/Desktop/Archivio/Archivio codici/sistemaDIngressoCamera/tastierinoNumerico/lib/Keypad/src",
+                "c:/Users/belmi/Desktop/Archivio/Archivio codici/sistemaDIngressoCamera/tastierino-Numerico/tastierinoNumerico/include",
+                "c:/Users/belmi/Desktop/Archivio/Archivio codici/sistemaDIngressoCamera/tastierino-Numerico/tastierinoNumerico/src",
+                "c:/Users/belmi/Desktop/Archivio/Archivio codici/sistemaDIngressoCamera/tastierino-Numerico/tastierinoNumerico/lib/Keypad/src",
                 "C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/newlib/platform_include",
                 "C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include",
                 "C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include/esp_additions/freertos",
@@ -207,7 +207,7 @@
                 "C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/dio_qspi/include",
                 "C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/cores/esp32",
                 "C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/variants/esp32",
-                "c:/Users/belmi/Desktop/Archivio/Archivio codici/sistemaDIngressoCamera/tastierinoNumerico/.pio/libdeps/esp32dev/Unity/src",
+                "c:/Users/belmi/Desktop/Archivio/Archivio codici/sistemaDIngressoCamera/tastierino-Numerico/tastierinoNumerico/.pio/libdeps/esp32dev/Unity/src",
                 "C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/libraries/ArduinoOTA/src",
                 "C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/libraries/AsyncUDP/src",
                 "C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src",
@@ -246,9 +246,9 @@
             "browse": {
                 "limitSymbolsToIncludedHeaders": true,
                 "path": [
-                    "c:/Users/belmi/Desktop/Archivio/Archivio codici/sistemaDIngressoCamera/tastierinoNumerico/include",
-                    "c:/Users/belmi/Desktop/Archivio/Archivio codici/sistemaDIngressoCamera/tastierinoNumerico/src",
-                    "c:/Users/belmi/Desktop/Archivio/Archivio codici/sistemaDIngressoCamera/tastierinoNumerico/lib/Keypad/src",
+                    "c:/Users/belmi/Desktop/Archivio/Archivio codici/sistemaDIngressoCamera/tastierino-Numerico/tastierinoNumerico/include",
+                    "c:/Users/belmi/Desktop/Archivio/Archivio codici/sistemaDIngressoCamera/tastierino-Numerico/tastierinoNumerico/src",
+                    "c:/Users/belmi/Desktop/Archivio/Archivio codici/sistemaDIngressoCamera/tastierino-Numerico/tastierinoNumerico/lib/Keypad/src",
                     "C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/newlib/platform_include",
                     "C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include",
                     "C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/freertos/include/esp_additions/freertos",
@@ -445,7 +445,7 @@
                     "C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/dio_qspi/include",
                     "C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/cores/esp32",
                     "C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/variants/esp32",
-                    "c:/Users/belmi/Desktop/Archivio/Archivio codici/sistemaDIngressoCamera/tastierinoNumerico/.pio/libdeps/esp32dev/Unity/src",
+                    "c:/Users/belmi/Desktop/Archivio/Archivio codici/sistemaDIngressoCamera/tastierino-Numerico/tastierinoNumerico/.pio/libdeps/esp32dev/Unity/src",
                     "C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/libraries/ArduinoOTA/src",
                     "C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/libraries/AsyncUDP/src",
                     "C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src",
