@@ -6,7 +6,7 @@ byte pinCicalino=13;
 byte sensoreMagnetico=35;
 
 byte ledRosso=21;
-byte ledGiallo=22;
+byte ledGiallo=4;
 byte ledVerde=23;
 byte numeroLED=3;
 byte pinLED[]={ledRosso, ledGiallo, ledVerde};
