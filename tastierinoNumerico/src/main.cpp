@@ -59,6 +59,9 @@ void setup(){
   }else{
     digitalWrite(ledVerde, HIGH);
   }
+  
+  digitalWrite(pinUnoMotorino, LOW);
+  digitalWrite(pinDueMotorino, LOW);
 }
   
 void loop(){
