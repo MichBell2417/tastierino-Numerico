@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Keypad.h>
+#include <AccelStepper.h>
 
 byte pinCicalino=13;
 
@@ -11,8 +12,12 @@ byte ledVerde=23;
 byte numeroLED=3;
 byte pinLED[]={ledRosso, ledGiallo, ledVerde};
 
-byte pinUnoMotorino=16;
-byte pinDueMotorino=17;
+byte pinUnoStepper=17;
+byte pinDueStepper=16;
+byte pinTreStepper=15;
+byte pinQuattroStepper=2;
+
+AccelStepper stepper(AccelStepper::FULL4WIRE, pinUnoStepper, pinTreStepper, pinDueStepper, pinQuattroStepper, true);
 
 String codiceIngress="12345";
 
@@ -39,8 +44,6 @@ boolean getPorta();
 
 void setup(){
   pinMode(pinCicalino, OUTPUT);
-  pinMode(pinUnoMotorino, OUTPUT);
-  pinMode(pinDueMotorino, OUTPUT);
   pinMode(sensoreMagnetico, INPUT);
   Serial.begin(115200);
   //svolgiamo il check dei led
@@ -59,9 +62,9 @@ void setup(){
   }else{
     digitalWrite(ledVerde, HIGH);
   }
-  
-  digitalWrite(pinUnoMotorino, LOW);
-  digitalWrite(pinDueMotorino, LOW);
+  stepper.setCurrentPosition(0);
+	stepper.setAcceleration(650);
+  stepper.setMaxSpeed(1000);
 }
   
 void loop(){
@@ -96,6 +99,7 @@ void loop(){
           bip(150);
           Serial.print("*");
         }else if(customKey=='*'){
+          //interrompiamo la costruzione del codice
           inserimento=false;
         }
       }
@@ -135,29 +139,32 @@ void bip(int durata){
 //viene utilizzato per aprire o chiudere la porta a chiave controllando il motorino
 //@param stato con true la porta si chiude, con false la porta si apre
 void setPorta(boolean stato){
+  int posizione;
   if(stato){
     Serial.println("chiusura porta");
-    digitalWrite(pinUnoMotorino, HIGH);
-    digitalWrite(pinDueMotorino, LOW);
-    delay(3000);
-    digitalWrite(pinUnoMotorino, LOW);
-    digitalWrite(pinDueMotorino, LOW);
-    statoPortaChiusura=stato;
-    digitalWrite(ledVerde,LOW);
-    digitalWrite(ledRosso,HIGH);
-    bip(200);
+    statoPortaChiusura=true;
+    posizione=-2800;
+    digitalWrite(ledVerde, LOW);
+    digitalWrite(ledRosso, HIGH);
+    bip(150);
   }else{
     Serial.println("apertura porta");
-    digitalWrite(pinUnoMotorino, LOW);
-    digitalWrite(pinDueMotorino, HIGH);
-    delay(3000);
-    digitalWrite(pinUnoMotorino, LOW);
-    digitalWrite(pinDueMotorino, LOW);
-    statoPortaChiusura=stato;
-    digitalWrite(ledRosso,LOW);
-    digitalWrite(ledVerde,HIGH);
-    bip(200);
+    statoPortaChiusura=false;
+    posizione=2800;
+    digitalWrite(ledRosso, LOW);
+    digitalWrite(ledVerde, HIGH);
+    bip(150);
   }
+  stepper.move(posizione);
+  //spostiamo lo stepper fino a quando non ha raggiunto la posizione
+  int posizioneIniziale=stepper.currentPosition();
+  while(stepper.currentPosition()!=posizione+posizioneIniziale){
+    stepper.run();
+  }
+  digitalWrite(pinUnoStepper,LOW);
+  digitalWrite(pinDueStepper,LOW);
+  digitalWrite(pinTreStepper,LOW);
+  digitalWrite(pinQuattroStepper,LOW);
 }
 //restituisce lo stato della porta se è aperta o chiusa ma non a chiave.
 //@return true=chiusa; false=aperta
