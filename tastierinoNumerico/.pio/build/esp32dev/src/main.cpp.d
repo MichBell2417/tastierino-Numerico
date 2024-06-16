@@ -198,4 +198,5 @@
  C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/lwip/include/apps/esp_sntp.h \
  C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/lwip/lwip/src/include/lwip/apps/sntp.h \
  C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/lwip/lwip/src/include/lwip/apps/sntp_opts.h \
- C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/lwip/lwip/src/include/lwip/prot/iana.h
+ C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/lwip/lwip/src/include/lwip/prot/iana.h \
+ C:/Users/belmi/.platformio/packages/framework-arduinoespressif32/libraries/EEPROM/src/EEPROM.h
