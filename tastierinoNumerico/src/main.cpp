@@ -64,8 +64,9 @@ long tempoPassatoOrario=0;
 void bip(int durata);
 void setPorta(bool stato);
 bool getPorta();
-String digitazioneCodice();
+String digitazioneCodice(int numeroCaratteri);
 int checkPassword(String passwordToCheck);
+void changePassword(String nuovaPassword, int passwordToChange);
 
 void setup(){
   EEPROM.begin(15);
@@ -113,11 +114,12 @@ void loop(){
     if (!getLocalTime(&orario)){
       Serial.println("tempo non disponibile");
     }
+    //Serial.println(&orario, "%H:%M:%S");
     tempoPassatoOrario=millis();
   }
+  char customKey = customKeypad.getKey();
   // porta chiusa
   if (getPorta()){
-    char customKey = customKeypad.getKey();
     // chiudiamo la porta a chiave
     if (customKey == '#' && !statoPortaChiusura){
       setPorta(true);
@@ -126,10 +128,9 @@ void loop(){
     if (customKey == '*' && statoPortaChiusura){
       digitalWrite(ledRosso, LOW);
       digitalWrite(ledVerde, LOW);
-      String code = digitazioneCodice();
+      String code = digitazioneCodice(5);
       Serial.print("\n il codice è: ");
       Serial.print(code);
-      digitalWrite(ledGiallo, LOW);
       if (code.length() == 5){
         if(checkPassword(code)!=-1){
           setPorta(false);
@@ -148,17 +149,35 @@ void loop(){
         bip(200);
       }
     }
+  }else{
+    //se la porta è aperta controlliamo se si vuole cambiare password
+    if(customKey=='*'){
+      String code=digitazioneCodice(5);
+      //se abbiamo inserito la password amministratore
+      if(checkPassword(code)==1){
+        bip(300);
+        //chiede a che utente cambiare password
+        int utente=atoi(digitazioneCodice(1).c_str()); //dovra essere 1 carattere
+        bip(150);
+        delay(100);
+        bip(150);
+        //nuovoCodice
+        code=digitazioneCodice(5);
+        changePassword(code,utente);
+      }
+    }
   }
 }
 //si legge la digitazione del codice a cinque caratteri
-//@return restituisce il codice di cinque o meno caratteri digitato
-String digitazioneCodice(){
+//@param numeroCaratteri la lunghezza del codice aspettata
+//@return restituisce il codice della lunghezza desiderata digitato
+String digitazioneCodice(int numeroCaratteri){
   String code = "";
   bool inserimento = true;
   Serial.println("inserisci il codice:");
   long tempoPassatoLampeggio = 0;
   bool statoLedGiallo = LOW;
-  while (code.length() < 5 && inserimento){
+  while (code.length() < numeroCaratteri && inserimento){
     // lampeggiamento led giallo
     long tempoMaggioreLampeggio = millis();
     if (tempoMaggioreLampeggio - tempoPassatoLampeggio > 200){
@@ -177,6 +196,7 @@ String digitazioneCodice(){
       inserimento = false;
     }
   }
+  digitalWrite(ledGiallo, LOW);
   return code;
 }
 
@@ -199,6 +219,12 @@ void changePassword(String nuovaPassword, int passwordToChange){
       }
     }
   }
+  Serial.println("password cambiata");
+  bip(100);
+  delay(100);
+  bip(100);
+  delay(100);
+  bip(100);
 }
 
 //metodo che controlla la corrispondena delle password nella EEPROM 
@@ -255,8 +281,8 @@ void setPorta(bool stato){
     digitalWrite(ledVerde, LOW);
     digitalWrite(ledRosso, HIGH);
     //salviamo nella EEPROM lo sato della porta
-    EEPROM.write(statoPorta, 1);
-    EEPROM.commit();
+    //EEPROM.write(statoPorta, 1);
+    //EEPROM.commit();
     bip(150);
   }else{
     Serial.println("apertura porta");
@@ -265,8 +291,8 @@ void setPorta(bool stato){
     digitalWrite(ledRosso, LOW);
     digitalWrite(ledVerde, HIGH);
     //salviamo nella EEPROM lo sato della porta
-    EEPROM.write(statoPorta, 0);
-    EEPROM.commit();
+    //EEPROM.write(statoPorta, 0);
+    //EEPROM.commit();
     bip(150);
   }
   stepper.move(posizione);
