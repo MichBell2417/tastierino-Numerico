@@ -51,8 +51,8 @@ char hexaKeys[ROWS][COLS] = {
     {'4', '5', '6'},
     {'7', '8', '9'},
     {'*', '0', '#'}};
-byte rowPins[ROWS] = {12, 14, 27, 26};
-byte colPins[COLS] = {25, 33, 32};
+byte rowPins[ROWS] = {33, 12, 14, 26};
+byte colPins[COLS] = {25, 32, 27};
 
 Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS);
 
@@ -114,7 +114,7 @@ void loop(){
     if (!getLocalTime(&orario)){
       Serial.println("tempo non disponibile");
     }
-    //Serial.println(&orario, "%H:%M:%S");
+    Serial.println(&orario, "%H:%M:%S");
     tempoPassatoOrario=millis();
   }
   char customKey = customKeypad.getKey();
@@ -262,12 +262,14 @@ int checkPassword(String passwordToCheck){
 //@param durata tempo in millisecondi
 void bip(int durata){
   byte ora= orario.tm_hour;
-  if(ora>13 && ora<18){
+  //[12;18[ incluse le ore 11 ma non le ore 18
+  if(ora>=12 && ora<19){
     digitalWrite(pinCicalino, HIGH);
     delay(durata);
     digitalWrite(pinCicalino, LOW);
     delay(10);
   }
+  Serial.println(ora);
 }
 
 // viene utilizzato per aprire o chiudere la porta a chiave controllando il motorino
