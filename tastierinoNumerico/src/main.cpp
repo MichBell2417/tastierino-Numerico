@@ -12,7 +12,7 @@ byte sensoreMagnetico = 35;
 
 byte ledRosso = 21;
 byte ledGiallo = 4;
-byte ledVerde = 23;
+byte ledVerde = 22;
 byte numeroLED = 3;
 byte pinLED[] = {ledRosso, ledGiallo, ledVerde};
 
@@ -151,7 +151,7 @@ void loop(){
     }
   }else{
     //se la porta è aperta controlliamo se si vuole cambiare password
-    if(customKey=='*'){
+    if(customKey=='*' && !statoPortaChiusura){
       String code=digitazioneCodice(5);
       //se abbiamo inserito la password amministratore
       if(checkPassword(code)==1){
@@ -279,7 +279,7 @@ void setPorta(bool stato){
   if (stato){
     Serial.println("chiusura porta");
     statoPortaChiusura = true;
-    posizione = -2800;
+    posizione = -2400;
     digitalWrite(ledVerde, LOW);
     digitalWrite(ledRosso, HIGH);
     //salviamo nella EEPROM lo sato della porta
@@ -289,7 +289,7 @@ void setPorta(bool stato){
   }else{
     Serial.println("apertura porta");
     statoPortaChiusura = false;
-    posizione = 2800;
+    posizione = 2400;
     digitalWrite(ledRosso, LOW);
     digitalWrite(ledVerde, HIGH);
     //salviamo nella EEPROM lo sato della porta
