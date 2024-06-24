@@ -5,16 +5,17 @@
 #include "time.h"
 #include "esp_sntp.h"
 #include <EEPROM.h>
+#include "LED.cpp"
 
 byte pinCicalino = 13;
 
 byte sensoreMagnetico = 35;
 
-byte ledRosso = 21;
-byte ledGiallo = 4;
-byte ledVerde = 22;
+LED ledRosso(21);
+LED ledGiallo(4);
+LED ledVerde(22);
 byte numeroLED = 3;
-byte pinLED[] = {ledRosso, ledGiallo, ledVerde};
+LED pinLED[] = {ledRosso, ledGiallo, ledVerde};
 
 byte pinUnoStepper = 17;
 byte pinDueStepper = 16;
@@ -43,6 +44,9 @@ int pGuest[]={7,8,9,10,11};
 //celle contenenti lo stato della poorta
 int statoPorta=13;
 
+//numero che indica il numero di volte che il codice è errato
+int reiterazioneErrore=0;
+
 const byte ROWS = 4; // four rows
 const byte COLS = 3; // four columns
 // define the cymbols on the buttons of the keypads
@@ -64,9 +68,12 @@ long tempoPassatoOrario=0;
 void bip(int durata);
 void setPorta(bool stato);
 bool getPorta();
+String digitazioneCodice(int numeroCaratteri, int nLED);
 String digitazioneCodice(int numeroCaratteri);
 int checkPassword(String passwordToCheck);
 void changePassword(String nuovaPassword, int passwordToChange);
+void interrompiLoop();
+void lampaeggiaLed(int nLed);
 
 void setup(){
   EEPROM.begin(15);
@@ -75,21 +82,21 @@ void setup(){
   Serial.begin(115200);
   // Check dei LED
   for (int i = 0; i < numeroLED; i++){
-    pinMode(pinLED[i], OUTPUT);
-    digitalWrite(pinLED[i], HIGH);
+    pinMode(pinLED[i].getPin(), OUTPUT);
+    digitalWrite(pinLED[i].getPin(), HIGH);
     delay(100);
   }
   delay(100);
   for (int i = numeroLED; i >= 0; i--){
-    digitalWrite(pinLED[i], LOW);
+    digitalWrite(pinLED[i].getPin(), LOW);
     delay(100);
   }
   Serial.println(EEPROM.read(statoPorta));
   statoPortaChiusura=EEPROM.read(statoPorta);
   if(statoPortaChiusura){
-    digitalWrite(ledRosso, HIGH);
+    digitalWrite(ledRosso.getPin(), HIGH);
   }else{
-    digitalWrite(ledVerde, HIGH);
+    digitalWrite(ledVerde.getPin(), HIGH);
   }
   // motore
   stepper.setCurrentPosition(0);
@@ -102,9 +109,9 @@ void setup(){
   while (WiFi.status() != WL_CONNECTED){
     delay(500);
     Serial.print(".");
-    digitalWrite(ledGiallo, HIGH);
+    digitalWrite(ledGiallo.getPin(), HIGH);
   }
-  digitalWrite(ledGiallo, LOW);
+  digitalWrite(ledGiallo.getPin(), LOW);
   Serial.println("\nConnesso!");
 }
 void loop(){
@@ -126,23 +133,33 @@ void loop(){
     }
     // si vuole inserire il codice
     if (customKey == '*' && statoPortaChiusura){
-      digitalWrite(ledRosso, LOW);
-      digitalWrite(ledVerde, LOW);
+      digitalWrite(ledRosso.getPin(), LOW);
+      digitalWrite(ledVerde.getPin(), LOW);
       String code = digitazioneCodice(5);
       Serial.print("\n il codice è: ");
       Serial.print(code);
       if (code.length() == 5){
         if(checkPassword(code)!=-1){
           setPorta(false);
+          reiterazioneErrore=0;
           Serial.println(" corrisponde");
         }else{
-          digitalWrite(ledRosso, HIGH);
+          digitalWrite(ledRosso.getPin(), HIGH);
+          reiterazioneErrore++;
+          if(reiterazioneErrore==3){
+            //interrompiamo il loop
+            interrompiLoop();
+            //riportiamo tutti i settaggi alla normalità
+            ledRosso.setStato(1);
+            digitalWrite(ledRosso.getPin(), ledRosso.getStato());
+            digitalWrite(pinCicalino, LOW);
+          }
           Serial.println(" non corrisponde");
           delay(150);
           bip(200);
         }
       }else{
-        digitalWrite(ledRosso, HIGH);
+        digitalWrite(ledRosso.getPin(), HIGH);
         Serial.println(" il codice è troppo corto");
         bip(200);
         delay(150);
@@ -168,36 +185,60 @@ void loop(){
     }
   }
 }
+
+//interrome il loop fino a quando non viene scritto il codice amministratore
+void interrompiLoop(){
+  String code="";
+  while(checkPassword(code)!=1){
+
+    code=digitazioneCodice(5, 0);
+  }
+}
+
+//metodo che fa lampeggiare un led. Va richiamato sempre in un ciclo.
+//@param nLed è il numero che corrispoinde al LED che si vuole far lampeggiare nel vettore pinLED 
+void lampaeggiaLed(int nLed){
+  pinLED[nLed].setStato(!pinLED[nLed].getStato());
+  digitalWrite(pinLED[nLed].getPin(), pinLED[nLed].getStato());
+  //accendiamo il cicalino in sincronia con il LED rosso
+  if(nLed==0){
+    digitalWrite(pinCicalino, pinLED[nLed].getStato());
+  }
+}
+
 //si legge la digitazione del codice a cinque caratteri
 //@param numeroCaratteri la lunghezza del codice aspettata
 //@return restituisce il codice della lunghezza desiderata digitato
-String digitazioneCodice(int numeroCaratteri){
+String digitazioneCodice(int numeroCaratteri, int nLED){
   String code = "";
   bool inserimento = true;
   Serial.println("inserisci il codice:");
   long tempoPassatoLampeggio = 0;
-  bool statoLedGiallo = LOW;
   while (code.length() < numeroCaratteri && inserimento){
     // lampeggiamento led giallo
     long tempoMaggioreLampeggio = millis();
     if (tempoMaggioreLampeggio - tempoPassatoLampeggio > 200){
-      statoLedGiallo = !statoLedGiallo;
-      digitalWrite(ledGiallo, statoLedGiallo);
-      tempoPassatoLampeggio = millis();
+      lampaeggiaLed(nLED); 
+      tempoPassatoLampeggio=millis();
     }
-    // costruzzione codice da verificare
+    // costruzione codice da verificare
     char charInserito = customKeypad.getKey();
     if (charInserito && charInserito != '*' && charInserito != '#'){
       code += charInserito;
-      bip(150);
+      if(nLED!=0){
+        bip(150);
+      }
       Serial.print("*");
     }else if (charInserito == '*'){
       // interrompiamo la costruzione del codice
       inserimento = false;
     }
   }
-  digitalWrite(ledGiallo, LOW);
+  digitalWrite(ledGiallo.getPin(), LOW);
   return code;
+}
+String digitazioneCodice(int numeroCaratteri){
+  return digitazioneCodice(numeroCaratteri, 1);
 }
 
 //metodo che cambia le password nella EEPROM
@@ -208,7 +249,7 @@ void changePassword(String nuovaPassword, int passwordToChange){
     if(passwordToChange==1){
       for(int i=0; i<5; i++){
         char numero=nuovaPassword[i];
-        EEPROM.write(pGuest[i], uint8_t(numero));
+        EEPROM.write(pAdmin[i], uint8_t(numero));
         EEPROM.commit();
       }
     }else if(passwordToChange==2){
@@ -280,8 +321,8 @@ void setPorta(bool stato){
     Serial.println("chiusura porta");
     statoPortaChiusura = true;
     posizione = -2400;
-    digitalWrite(ledVerde, LOW);
-    digitalWrite(ledRosso, HIGH);
+    digitalWrite(ledVerde.getPin(), LOW);
+    digitalWrite(ledRosso.getPin(), HIGH);
     //salviamo nella EEPROM lo sato della porta
     //EEPROM.write(statoPorta, 1);
     //EEPROM.commit();
@@ -290,8 +331,8 @@ void setPorta(bool stato){
     Serial.println("apertura porta");
     statoPortaChiusura = false;
     posizione = 2400;
-    digitalWrite(ledRosso, LOW);
-    digitalWrite(ledVerde, HIGH);
+    digitalWrite(ledRosso.getPin(), LOW);
+    digitalWrite(ledVerde.getPin(), HIGH);
     //salviamo nella EEPROM lo sato della porta
     //EEPROM.write(statoPorta, 0);
     //EEPROM.commit();
