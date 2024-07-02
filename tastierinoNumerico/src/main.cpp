@@ -24,6 +24,7 @@ byte pinQuattroStepper = 2;
 
 AccelStepper stepper(AccelStepper::FULL4WIRE, pinUnoStepper, pinTreStepper, pinDueStepper, pinQuattroStepper, true);
 
+//indica se la porta è chiusa a chiave
 boolean statoPortaChiusura;
 
 const String ssid = "Vodafone-ESP32&Co";
@@ -166,6 +167,11 @@ void loop(){
         bip(200);
       }
     }
+  }else if(statoPortaChiusura){
+    //se la porta è aperta ma è chiusa a chiave
+    interrompiLoop();
+    digitalWrite(pinCicalino, LOW);
+    setPorta(false);
   }else{
     //se la porta è aperta controlliamo se si vuole cambiare password
     if(customKey=='*' && !statoPortaChiusura){
@@ -189,8 +195,9 @@ void loop(){
 //interrome il loop fino a quando non viene scritto il codice amministratore
 void interrompiLoop(){
   String code="";
-  while(checkPassword(code)!=1){
-
+  //aspettiamo la digitazione della password amministratore
+  while(checkPassword(code)==-1){
+    //in questo modo aspettiamo la password amministratore, e facciamo lampeggiare il LED rosso con il cicalino
     code=digitazioneCodice(5, 0);
   }
 }
@@ -208,6 +215,7 @@ void lampaeggiaLed(int nLed){
 
 //si legge la digitazione del codice a cinque caratteri
 //@param numeroCaratteri la lunghezza del codice aspettata
+//@param nLED indica la posizione del LED nel vettore pinLED
 //@return restituisce il codice della lunghezza desiderata digitato
 String digitazioneCodice(int numeroCaratteri, int nLED){
   String code = "";
@@ -221,7 +229,7 @@ String digitazioneCodice(int numeroCaratteri, int nLED){
       lampaeggiaLed(nLED); 
       tempoPassatoLampeggio=millis();
     }
-    // costruzione codice da verificare
+    // costruzione codice da verifi care
     char charInserito = customKeypad.getKey();
     if (charInserito && charInserito != '*' && charInserito != '#'){
       code += charInserito;
@@ -303,7 +311,7 @@ int checkPassword(String passwordToCheck){
 //@param durata tempo in millisecondi
 void bip(int durata){
   byte ora= orario.tm_hour;
-  //[12;18[ incluse le ore 11 ma non le ore 18
+  //[12;18[ incluse le ore 12 ma non le ore 18
   if(ora>=12 && ora<19){
     digitalWrite(pinCicalino, HIGH);
     delay(durata);
@@ -322,7 +330,6 @@ void setPorta(bool stato){
     statoPortaChiusura = true;
     posizione = -2400;
     digitalWrite(ledVerde.getPin(), LOW);
-    digitalWrite(ledRosso.getPin(), HIGH);
     //salviamo nella EEPROM lo sato della porta
     //EEPROM.write(statoPorta, 1);
     //EEPROM.commit();
@@ -332,7 +339,6 @@ void setPorta(bool stato){
     statoPortaChiusura = false;
     posizione = 2400;
     digitalWrite(ledRosso.getPin(), LOW);
-    digitalWrite(ledVerde.getPin(), HIGH);
     //salviamo nella EEPROM lo sato della porta
     //EEPROM.write(statoPorta, 0);
     //EEPROM.commit();
@@ -343,6 +349,12 @@ void setPorta(bool stato){
   int posizioneIniziale = stepper.currentPosition();
   while (stepper.currentPosition() != posizione + posizioneIniziale){
     stepper.run();
+  }
+  //accendiamo i LED per indicare lo stato dell aporta all'esterno
+  if(posizione>0){
+    digitalWrite(ledVerde.getPin(), HIGH);
+  }else{
+    digitalWrite(ledRosso.getPin(), HIGH);
   }
   digitalWrite(pinUnoStepper, LOW);
   digitalWrite(pinDueStepper, LOW);
