@@ -11,6 +11,8 @@ byte pinCicalino = 13;
 
 byte sensoreMagnetico = 35;
 
+byte pinInterruttoreInterno = 18;
+
 LED ledRosso(21);
 LED ledGiallo(4);
 LED ledVerde(22);
@@ -80,6 +82,7 @@ void setup(){
   EEPROM.begin(15);
   pinMode(pinCicalino, OUTPUT);
   pinMode(sensoreMagnetico, INPUT);
+  pinMode(pinInterruttoreInterno, INPUT);
   Serial.begin(115200);
   // Check dei LED
   for (int i = 0; i < numeroLED; i++){
@@ -128,6 +131,12 @@ void loop(){
   char customKey = customKeypad.getKey();
   // porta chiusa
   if (getPorta()){
+    //clicchiamo l'interruttore interno
+    if(digitalRead(pinInterruttoreInterno)){
+      //invertiamo lo stato della chiusura a chiave della porta
+      setPorta(!statoPortaChiusura);
+      delay(200);
+    }
     // chiudiamo la porta a chiave
     if (customKey == '#' && !statoPortaChiusura){
       setPorta(true);
@@ -171,7 +180,10 @@ void loop(){
     //se la porta è aperta ma è chiusa a chiave
     interrompiLoop();
     digitalWrite(pinCicalino, LOW);
-    setPorta(false);
+    if(statoPortaChiusura){
+      setPorta(false);
+    }
+    
   }else{
     //se la porta è aperta controlliamo se si vuole cambiare password
     if(customKey=='*' && !statoPortaChiusura){
@@ -190,6 +202,7 @@ void loop(){
       }
     }
   }
+
 }
 
 //interrome il loop fino a quando non viene scritto il codice amministratore
@@ -223,6 +236,12 @@ String digitazioneCodice(int numeroCaratteri, int nLED){
   Serial.println("inserisci il codice:");
   long tempoPassatoLampeggio = 0;
   while (code.length() < numeroCaratteri && inserimento){
+    //controlliamo se qualcuno dall'interno cerca di aprire la porta
+    if(digitalRead(pinInterruttoreInterno)){
+      //invertiamo lo stato della chiusura a chiave della porta
+      setPorta(!statoPortaChiusura);
+      delay(200);
+    }
     // lampeggiamento led giallo
     long tempoMaggioreLampeggio = millis();
     if (tempoMaggioreLampeggio - tempoPassatoLampeggio > 200){
