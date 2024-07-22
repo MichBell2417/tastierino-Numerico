@@ -182,6 +182,9 @@ void loop(){
     digitalWrite(pinCicalino, LOW);
     if(statoPortaChiusura){
       setPorta(false);
+    }else{
+      ledRosso.setStato(false);
+      digitalWrite(ledRosso.getPin(), LOW);
     }
     
   }else{
@@ -205,7 +208,7 @@ void loop(){
 
 }
 
-//interrome il loop fino a quando non viene scritto il codice amministratore
+//interrompe il loop fino a quando non viene scritto il codice amministratore
 void interrompiLoop(){
   String code="";
   //aspettiamo la digitazione della password amministratore
