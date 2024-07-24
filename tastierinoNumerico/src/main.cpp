@@ -67,6 +67,9 @@ Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS)
 long tempoMaggioreOrario;
 long tempoPassatoOrario=0;
 
+//indica l'ora
+byte ora;
+
 // metodi
 void bip(int durata);
 void setPorta(bool stato);
@@ -126,6 +129,7 @@ void loop(){
       Serial.println("tempo non disponibile");
     }
     Serial.println(&orario, "%H:%M:%S");
+    ora=orario.tm_hour;
     tempoPassatoOrario=millis();
   }
   char customKey = customKeypad.getKey();
@@ -224,7 +228,7 @@ void lampaeggiaLed(int nLed){
   pinLED[nLed].setStato(!pinLED[nLed].getStato());
   digitalWrite(pinLED[nLed].getPin(), pinLED[nLed].getStato());
   //accendiamo il cicalino in sincronia con il LED rosso
-  if(nLed==0){
+  if(nLed==0 && !(ora >= 21 || ora <= 9)){
     digitalWrite(pinCicalino, pinLED[nLed].getStato());
   }
 }
@@ -251,7 +255,7 @@ String digitazioneCodice(int numeroCaratteri, int nLED){
       lampaeggiaLed(nLED); 
       tempoPassatoLampeggio=millis();
     }
-    // costruzione codice da verifi care
+    // costruzione codice da verificare
     char charInserito = customKeypad.getKey();
     if (charInserito && charInserito != '*' && charInserito != '#'){
       code += charInserito;
@@ -332,7 +336,6 @@ int checkPassword(String passwordToCheck){
 // metodo che emette un suono per la durata inserita
 //@param durata tempo in millisecondi
 void bip(int durata){
-  byte ora= orario.tm_hour;
   //[12;18[ incluse le ore 12 ma non le ore 18
   if(ora>=12 && ora<19){
     digitalWrite(pinCicalino, HIGH);
