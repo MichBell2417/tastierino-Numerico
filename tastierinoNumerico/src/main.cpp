@@ -14,7 +14,7 @@ byte sensoreMagnetico = 35;
 byte pinInterruttoreInterno = 18;
 
 LED ledRosso(21);
-LED ledGiallo(4);
+LED ledGiallo(23);
 LED ledVerde(22);
 byte numeroLED = 3;
 LED pinLED[] = {ledRosso, ledGiallo, ledVerde};
@@ -66,6 +66,10 @@ Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS)
 //variabili temporali
 long tempoMaggioreOrario;
 long tempoPassatoOrario=0;
+long tempoMaggioreLampeggio;
+long tempoPassatoLampeggio=0;
+//variabile che indica il tempo che è passato dall'ingresso nel ciclo della digitazione del pin
+long tempoPassatoIngressoDigitazione=0;
 
 //indica l'ora
 byte ora;
@@ -241,16 +245,10 @@ String digitazioneCodice(int numeroCaratteri, int nLED){
   String code = "";
   bool inserimento = true;
   Serial.println("inserisci il codice:");
-  long tempoPassatoLampeggio = 0;
-  while (code.length() < numeroCaratteri && inserimento){
-    //controlliamo se qualcuno dall'interno cerca di aprire la porta
-    if(digitalRead(pinInterruttoreInterno)){
-      //invertiamo lo stato della chiusura a chiave della porta
-      setPorta(!statoPortaChiusura);
-      delay(200);
-    }
+  tempoPassatoIngressoDigitazione=millis();
+  while (code.length() < numeroCaratteri && inserimento ){
     // lampeggiamento led giallo
-    long tempoMaggioreLampeggio = millis();
+    tempoMaggioreLampeggio = millis();
     if (tempoMaggioreLampeggio - tempoPassatoLampeggio > 200){
       lampaeggiaLed(nLED); 
       tempoPassatoLampeggio=millis();
@@ -263,7 +261,7 @@ String digitazioneCodice(int numeroCaratteri, int nLED){
         bip(150);
       }
       Serial.print("*");
-    }else if (charInserito == '*'){
+    }else if (charInserito == '*' || millis()-tempoPassatoIngressoDigitazione>=8000){
       // interrompiamo la costruzione del codice
       inserimento = false;
     }
