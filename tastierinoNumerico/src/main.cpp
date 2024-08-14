@@ -188,13 +188,7 @@ void loop(){
     //se la porta è aperta ma è chiusa a chiave
     interrompiLoop();
     digitalWrite(pinCicalino, LOW);
-    if(statoPortaChiusura){
-      setPorta(false);
-    }else{
-      ledRosso.setStato(false);
-      digitalWrite(ledRosso.getPin(), LOW);
-    }
-    
+    setPorta(false);
   }else{
     //se la porta è aperta controlliamo se si vuole cambiare password
     if(customKey=='*' && !statoPortaChiusura){
@@ -253,6 +247,15 @@ String digitazioneCodice(int numeroCaratteri, int nLED){
       lampaeggiaLed(nLED); 
       tempoPassatoLampeggio=millis();
     }
+    //se il led che lampeggia corrisponde al rosso (0)
+    if(nLED==0){
+      if(digitalRead(pinInterruttoreInterno)){
+        for(int i=0; i<5; i++){
+          code+=(char)(EEPROM.read(pGuest[i]));
+        }
+        return code;
+      }
+    }
     // costruzione codice da verificare
     char charInserito = customKeypad.getKey();
     if (charInserito && charInserito != '*' && charInserito != '#'){
@@ -262,13 +265,14 @@ String digitazioneCodice(int numeroCaratteri, int nLED){
       }
       Serial.print("*");
     }else if (charInserito == '*' || millis()-tempoPassatoIngressoDigitazione>=8000){
-      // interrompiamo la costruzione del codice
+      //interrompiamo la costruzione del codice
       inserimento = false;
     }
   }
   digitalWrite(ledGiallo.getPin(), LOW);
   return code;
 }
+
 String digitazioneCodice(int numeroCaratteri){
   return digitazioneCodice(numeroCaratteri, 1);
 }
@@ -315,11 +319,11 @@ int checkPassword(String passwordToCheck){
     Serial.println(EEPROM.read(pGuest[i])-48);
     if(numero!=EEPROM.read(pAdmin[i]) && corrispondeAdmin){
       corrispondeAdmin=false;
-      Serial.println("cabiato admin");
+      Serial.println("errato admin");
     }
     if(numero!=EEPROM.read(pGuest[i]) && corrispondeGuest){
       corrispondeGuest=false;
-      Serial.println("cabiato guest");
+      Serial.println("errato guest");
     }
   }
   if(corrispondeAdmin){
@@ -356,7 +360,7 @@ void setPorta(bool stato){
     //salviamo nella EEPROM lo sato della porta
     //EEPROM.write(statoPorta, 1);
     //EEPROM.commit();
-    bip(150);
+    //bip(150);
   }else{
     Serial.println("apertura porta");
     statoPortaChiusura = false;
@@ -365,7 +369,7 @@ void setPorta(bool stato){
     //salviamo nella EEPROM lo sato della porta
     //EEPROM.write(statoPorta, 0);
     //EEPROM.commit();
-    bip(150);
+    //bip(150);
   }
   stepper.move(posizione);
   // spostiamo lo stepper fino a quando non ha raggiunto la posizione
