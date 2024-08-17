@@ -135,6 +135,9 @@ void loop(){
     Serial.println(&orario, "%H:%M:%S");
     ora=orario.tm_hour;
     tempoPassatoOrario=millis();
+    float temperaturaInterna = temperatureRead();
+    Serial.print("temperatura = ");
+    Serial.println(temperaturaInterna);
   }
   char customKey = customKeypad.getKey();
   // porta chiusa
