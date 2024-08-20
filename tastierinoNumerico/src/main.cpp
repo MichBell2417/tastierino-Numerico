@@ -5,7 +5,12 @@
 #include "time.h"
 #include "esp_sntp.h"
 #include <EEPROM.h>
+#include <LiquidCrystal_I2C.h>
 #include "LED.cpp"
+
+LiquidCrystal_I2C screen(0x27, 16, 2);
+
+byte pinSensorePIR = 34;
 
 byte pinCicalino = 13;
 
@@ -91,6 +96,11 @@ void setup(){
   pinMode(sensoreMagnetico, INPUT);
   pinMode(pinInterruttoreInterno, INPUT);
   Serial.begin(115200);
+  // LCD Screen 
+  screen.init();
+  screen.backlight();
+  screen.setCursor(0, 0);
+  screen.print("STATO:");
   // Check dei LED
   for (int i = 0; i < numeroLED; i++){
     pinMode(pinLED[i].getPin(), OUTPUT);
@@ -117,6 +127,8 @@ void setup(){
   configTzTime(time_zone, ntpServer1, ntpServer2);
   // WiFi
   WiFi.begin(ssid, password);
+  screen.setCursor(0, 1);
+  screen.print("connessione...");
   while (WiFi.status() != WL_CONNECTED){
     delay(500);
     Serial.print(".");
@@ -124,6 +136,7 @@ void setup(){
   }
   digitalWrite(ledGiallo.getPin(), LOW);
   Serial.println("\nConnesso!");
+  screen.clear();
 }
 void loop(){
   tempoMaggioreOrario=millis();
@@ -131,6 +144,35 @@ void loop(){
   if(tempoMaggioreOrario-tempoPassatoOrario>=1000){
     if (!getLocalTime(&orario)){
       Serial.println("tempo non disponibile");
+    }
+    screen.setCursor(0,0);
+    if(orario.tm_hour<10){
+      screen.print(0);
+      screen.setCursor(1,0);
+      screen.print(orario.tm_hour);
+    }else{
+      screen.print(orario.tm_hour);
+    }
+    
+    screen.setCursor(2,0);
+    screen.print(":");
+    screen.setCursor(3,0);
+    if(orario.tm_min<10){
+      screen.print(0);
+      screen.setCursor(4,0);
+      screen.print(orario.tm_min);
+    }else{
+      screen.print(orario.tm_min);
+    }
+    screen.setCursor(5,0);
+    screen.print(":");
+    screen.setCursor(6,0);
+    if(orario.tm_sec<10){
+      screen.print(0);
+      screen.setCursor(7,0);
+      screen.print(orario.tm_sec);
+    }else{
+      screen.print(orario.tm_sec);
     }
     Serial.println(&orario, "%H:%M:%S");
     ora=orario.tm_hour;
@@ -148,51 +190,64 @@ void loop(){
       setPorta(!statoPortaChiusura);
       delay(200);
     }
-    // chiudiamo la porta a chiave
-    if (customKey == '#' && !statoPortaChiusura){
-      setPorta(true);
-    }
-    // si vuole inserire il codice
-    if (customKey == '*' && statoPortaChiusura){
-      digitalWrite(ledRosso.getPin(), LOW);
-      digitalWrite(ledVerde.getPin(), LOW);
-      String code = digitazioneCodice(5);
-      Serial.print("\n il codice è: ");
-      Serial.print(code);
-      if (code.length() == 5){
-        if(checkPassword(code)!=-1){
-          setPorta(false);
-          reiterazioneErrore=0;
-          Serial.println(" corrisponde");
+    if(statoPortaChiusura){
+      screen.setCursor(0,1);
+      screen.print("allarme attivo  ");
+      // si vuole inserire il codice
+      if (customKey == '*'){
+        digitalWrite(ledRosso.getPin(), LOW);
+        digitalWrite(ledVerde.getPin(), LOW);
+        String code = digitazioneCodice(5);
+        screen.clear();
+        Serial.print("\n il codice è: ");
+        Serial.print(code);
+        if (code.length() == 5){
+          if(checkPassword(code)!=-1){
+            setPorta(false);
+            reiterazioneErrore=0;
+            Serial.println(" corrisponde");
+          }else{
+            digitalWrite(ledRosso.getPin(), HIGH);
+            reiterazioneErrore++;
+            if(reiterazioneErrore==3){
+              //interrompiamo il loop
+              interrompiLoop();
+              screen.clear();
+              //riportiamo tutti i settaggi alla normalità
+              ledRosso.setStato(1);
+              digitalWrite(ledRosso.getPin(), ledRosso.getStato());
+              digitalWrite(pinCicalino, LOW);
+            }
+            Serial.println(" non corrisponde");
+            delay(150);
+            bip(200);
+          }
         }else{
           digitalWrite(ledRosso.getPin(), HIGH);
-          reiterazioneErrore++;
-          if(reiterazioneErrore==3){
-            //interrompiamo il loop
-            interrompiLoop();
-            //riportiamo tutti i settaggi alla normalità
-            ledRosso.setStato(1);
-            digitalWrite(ledRosso.getPin(), ledRosso.getStato());
-            digitalWrite(pinCicalino, LOW);
-          }
-          Serial.println(" non corrisponde");
+          Serial.println(" il codice è troppo corto");
+          bip(200);
           delay(150);
           bip(200);
         }
-      }else{
-        digitalWrite(ledRosso.getPin(), HIGH);
-        Serial.println(" il codice è troppo corto");
-        bip(200);
-        delay(150);
-        bip(200);
+      }
+    }else{
+      screen.setCursor(0,1);
+      screen.print("allarme inattivo");
+      // chiudiamo la porta a chiave
+      if (customKey == '#'){
+        setPorta(true);
       }
     }
+    
   }else if(statoPortaChiusura){
     //se la porta è aperta ma è chiusa a chiave
     interrompiLoop();
     digitalWrite(pinCicalino, LOW);
     setPorta(false);
-  }else{
+    screen.clear();
+  }else {
+    screen.setCursor(0, 1);
+    screen.print("porta aperta    ");
     //se la porta è aperta controlliamo se si vuole cambiare password
     if(customKey=='*' && !statoPortaChiusura){
       String code=digitazioneCodice(5);
@@ -241,8 +296,12 @@ void lampaeggiaLed(int nLed){
 String digitazioneCodice(int numeroCaratteri, int nLED){
   String code = "";
   bool inserimento = true;
+  screen.clear();
+  screen.setCursor(0,0);
+  screen.print("insert password");
   Serial.println("inserisci il codice:");
   tempoPassatoIngressoDigitazione=millis();
+  int nColonnaSchermo=0;
   while (code.length() < numeroCaratteri && inserimento ){
     // lampeggiamento led giallo
     tempoMaggioreLampeggio = millis();
@@ -266,6 +325,9 @@ String digitazioneCodice(int numeroCaratteri, int nLED){
       if(nLED!=0){
         bip(150);
       }
+      screen.setCursor(nColonnaSchermo,1);
+      screen.print("*");
+      nColonnaSchermo++;
       Serial.print("*");
     }else if (charInserito == '*' || millis()-tempoPassatoIngressoDigitazione>=8000){
       //interrompiamo la costruzione del codice
