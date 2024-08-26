@@ -153,7 +153,6 @@ void loop(){
     }else{
       screen.print(orario.tm_hour);
     }
-    
     screen.setCursor(2,0);
     screen.print(":");
     screen.setCursor(3,0);
@@ -174,8 +173,15 @@ void loop(){
     }else{
       screen.print(orario.tm_sec);
     }
+    screen.setCursor(8,0);
+    screen.print("        ");
     Serial.println(&orario, "%H:%M:%S");
     ora=orario.tm_hour;
+    if(ora>=22 && ora<7){
+      screen.noBacklight();
+    }else{
+      screen.backlight();
+    }
     tempoPassatoOrario=millis();
     float temperaturaInterna = temperatureRead();
     Serial.print("temperatura = ");
@@ -419,6 +425,8 @@ void setPorta(bool stato){
   int posizione;
   if (stato){
     Serial.println("chiusura porta");
+    screen.setCursor(0,0);
+    screen.print("chiusura...");
     statoPortaChiusura = true;
     posizione = -2400;
     digitalWrite(ledVerde.getPin(), LOW);
@@ -428,6 +436,8 @@ void setPorta(bool stato){
     //bip(150);
   }else{
     Serial.println("apertura porta");
+    screen.setCursor(0,0);
+    screen.print("apertura...");
     statoPortaChiusura = false;
     posizione = 2400;
     digitalWrite(ledRosso.getPin(), LOW);
