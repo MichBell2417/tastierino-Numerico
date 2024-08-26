@@ -177,7 +177,7 @@ void loop(){
     screen.print("        ");
     Serial.println(&orario, "%H:%M:%S");
     ora=orario.tm_hour;
-    if(ora>=22 && ora<7){
+    if(ora>=22 || ora<7){
       screen.noBacklight();
     }else{
       screen.backlight();
