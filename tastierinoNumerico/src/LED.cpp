@@ -9,7 +9,6 @@ public:
         stato=false;
         nPin=numeroPin;
     }
-
     bool getStato(){
         return stato;
     }
