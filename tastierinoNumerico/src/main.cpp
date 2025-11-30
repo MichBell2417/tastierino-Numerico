@@ -2,6 +2,7 @@
 #include <Keypad.h>
 #include <AccelStepper.h>
 #include <WiFi.h>
+#include <PubSubClient.h> //per poter relazionare con il brocker mqtt
 #include "time.h"
 #include "esp_sntp.h"
 #include <EEPROM.h>
@@ -31,11 +32,19 @@ byte pinQuattroStepper = 2;
 
 AccelStepper stepper(AccelStepper::FULL4WIRE, pinUnoStepper, pinTreStepper, pinDueStepper, pinQuattroStepper, true);
 
-//indica se la porta è chiusa a chiave
+/**indica se la porta è chiusa a chiave
+ * @return porta chiusa=true, porta aperta=false
+ */
 boolean statoPortaChiusura;
 
-const String ssid = "Vodafone-ESP32&Co";
-const String password = "ForYouAndESP32";
+
+const char* ssid = "Vodafone-C01830055";
+const char* password = "Ytnackqmz9P3cags";
+const char* server_ip = "192.168.1.19";
+
+//configuro il client mqtt
+WiFiClient espClient;
+PubSubClient client(espClient);
 
 const char *ntpServer1 = "pool.ntp.org";
 const char *ntpServer2 = "time.nist.gov";
@@ -89,6 +98,13 @@ int checkPassword(String passwordToCheck);
 void changePassword(String nuovaPassword, int passwordToChange);
 void interrompiLoop();
 void lampaeggiaLed(int nLed);
+//metodi per gestire comunicazione con server
+void callback(char* topic, byte* message, unsigned int length);
+void checkWiFi();
+void reconnect();
+void executeCommand(String command, String who);
+String* split(const String &string);
+void sendResponse(String message);
 
 void setup(){
   EEPROM.begin(15);
@@ -137,6 +153,11 @@ void setup(){
   digitalWrite(ledGiallo.getPin(), LOW);
   Serial.println("\nConnesso!");
   screen.clear();
+  //mqtt
+  client.setServer(server_ip, 1883);
+  client.setCallback(callback);
+  client.connect("ESP32_PortaMichele");
+  client.subscribe("esp32/command");
 }
 void loop(){
   tempoMaggioreOrario=millis();
@@ -175,7 +196,7 @@ void loop(){
     }
     screen.setCursor(8,0);
     screen.print("        ");
-    Serial.println(&orario, "%H:%M:%S");
+    //Serial.println(&orario, "%H:%M:%S");
     ora=orario.tm_hour;
     if(ora>=22 || ora<7){
       screen.noBacklight();
@@ -184,8 +205,8 @@ void loop(){
     }
     tempoPassatoOrario=millis();
     float temperaturaInterna = temperatureRead();
-    Serial.print("temperatura = ");
-    Serial.println(temperaturaInterna);
+    //Serial.print("temperatura = ");
+    //Serial.println(temperaturaInterna);
   }
   char customKey = customKeypad.getKey();
   // porta chiusa
@@ -194,6 +215,9 @@ void loop(){
     if(digitalRead(pinInterruttoreInterno)){
       //invertiamo lo stato della chiusura a chiave della porta
       setPorta(!statoPortaChiusura);
+      String txt="persona All'interno|switchInterno|";
+      statoPortaChiusura ? txt+="ha chiuso la porta" : txt+="ha aperto la porta"; 
+      sendResponse(txt);
       delay(200);
     }
     if(statoPortaChiusura){
@@ -208,15 +232,21 @@ void loop(){
         Serial.print("\n il codice è: ");
         Serial.print(code);
         if (code.length() == 5){
-          if(checkPassword(code)!=-1){
+          int who = checkPassword(code);
+          String txt="";
+          if(who!=-1){
+            who == 1 ? txt+="Admin" : txt+="Guest";
+            txt+="|tastierinoEsterno|apertoPorta con errori pari a "+reiterazioneErrore;
             setPorta(false);
             reiterazioneErrore=0;
             Serial.println(" corrisponde");
+            sendResponse(txt);
           }else{
             digitalWrite(ledRosso.getPin(), HIGH);
             reiterazioneErrore++;
             if(reiterazioneErrore==3){
-              //interrompiamo il loop
+              sendResponse("-1|tastierinoEsterno|attivazioneAllarme errori pari a 3");
+              //interrompiamo il loop e scatta l'allarme
               interrompiLoop();
               screen.clear();
               //riportiamo tutti i settaggi alla normalità
@@ -241,12 +271,14 @@ void loop(){
       screen.print("allarme inattivo");
       // chiudiamo la porta a chiave
       if (customKey == '#'){
+        sendResponse("-1|tastierinoEsterno|chiusuraPorta");
         setPorta(true);
       }
     }
     
   }else if(statoPortaChiusura){
     //se la porta è aperta ma è chiusa a chiave
+    sendResponse("-1|porta|attivazioneAllarme apertura porta imprevista");
     interrompiLoop();
     digitalWrite(pinCicalino, LOW);
     setPorta(false);
@@ -271,17 +303,120 @@ void loop(){
       }
     }
   }
-
+  //controllo se il wifi è ancora connesso
+  checkWiFi();
+  //se il servizio mqtt non è più collegato mi ci ricollego
+  if (!client.connected()) {
+      reconnect();
+  }
+  //evito che il client interrompa l'ascolto
+  client.loop();
 }
 
-//interrompe il loop fino a quando non viene scritto il codice amministratore
-void interrompiLoop(){
+//metodi per la gestione della comunicazione con server
+/**
+ * metodo che viene richiamato alla ricezione di un nuovo messaggio nel topic controllato 
+ * dal client
+ */
+void callback(char* topic, byte* message, unsigned int length) {
+    String command = "";
+    for (int i = 0; i < length; i++) command += (char)message[i];
+    Serial.println("Ricevuto comando: " + command);
+    String* component=split(command);
+    //Verifico che il comando abbia inviato un pin esistente
+    int user=checkPassword(component[0]);
+    Serial.println(component[1]);
+    if(user==1){
+      executeCommand(component[1],"Admin");
+    }else if(user=2){
+      executeCommand(component[1],"Guest");
+    }else{
+      sendResponse(component[0]+"|web|"+component[2]);
+    }
+}
+void executeCommand(String command, String who){
+  String txt=who+"|web|";
+  if(command=="CloseDoor"){
+    //chiudi la porta
+    setPorta(true);
+    if(statoPortaChiusura){
+      txt+="chiusura effettuata con successo";
+    }else{
+      txt+="chiusura non effettuata";
+    }
+  }else if(command.equals("OpenDoor")){
+    //apri la porta
+    setPorta(false);
+    if(statoPortaChiusura){
+      txt+="apertura non eseguita";
+    }else{
+      txt+="apertura eseguita con successo";
+    }
+  }else if(command.equals("StatusDoor")){
+    //comunica lo stato della porta attualmente
+    String comunicazione="";
+    if(statoPortaChiusura){
+      comunicazione+="la porta sta chiusa a chiave";
+    }else{
+      if(getPorta()){
+        comunicazione+="la porta sta chiusa ma non a chiave";
+      }else{
+        comunicazione+="la porta sta aperta";
+      }
+    }
+    txt+=comunicazione;
+  }
+  sendResponse(txt);
+  /*else if(command.equals("ChronDoor")){
+    //comunica la cronologia degli stati della porta
+    //PROBABILE VENGA FATTO DAL SERVER
+  }*/
+}
+void checkWiFi() {
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("WiFi perso, riconnessione in corso...");
+        WiFi.begin(ssid, password);
+        while (WiFi.status() != WL_CONNECTED) {
+            delay(1000);
+            Serial.print(".");
+        }
+        Serial.println("WiFi riconnesso!");
+    }
+}
+/**
+ * eseguo la riconnessione al broker mqtt
+ */
+void reconnect() {
+    while (!client.connected()) {
+        Serial.print("Tentativo di riconnessione MQTT...");
+        if (client.connect("ESP32_Client")) {
+            Serial.println("Connesso!");
+            client.subscribe("esp32/command");  // Riesegue la sottoscrizione al topic
+        } else {
+            Serial.print("Tentativo fallito. Codice: ");
+            Serial.print(client.state());
+            Serial.println(" Riprovo tra 5 secondi...");
+            delay(5000);
+        }
+    }
+}
+
+/**
+ * interrompe il loop fino a quando non viene scritto il codice amministratore o guest
+ * eseguiamo il lampeggio del led ed il suono del cicalino.
+*/
+ void interrompiLoop(){
   String code="";
   //aspettiamo la digitazione della password amministratore
   while(checkPassword(code)==-1){
     //in questo modo aspettiamo la password amministratore, e facciamo lampeggiare il LED rosso con il cicalino
     code=digitazioneCodice(5, 0);
   }
+  String txt="";
+  int who=checkPassword(code);
+  who == 1 ? txt+="Admin" : txt+="Guest";
+  txt+="|tastierinoEsterno|interruzioneAllarme";
+  sendResponse(txt);
 }
 
 //metodo che fa lampeggiare un led. Va richiamato sempre in un ciclo.
@@ -359,15 +494,18 @@ void changePassword(String nuovaPassword, int passwordToChange){
         EEPROM.write(pAdmin[i], uint8_t(numero));
         EEPROM.commit();
       }
+      sendResponse("Admin|tastierinoNumerico|cambiamentoPasswordAdmin");
     }else if(passwordToChange==2){
       for(int i=0; i<5; i++){
         char numero=nuovaPassword[i];
         EEPROM.write(pGuest[i], uint8_t(numero));
         EEPROM.commit();
+        sendResponse("Admin|tastierinoNumerico|cambiamentoPasswordGuest");
       }
+    }else{
+      sendResponse("Admin|tastierinoNumerico|password da cambiare inesistente");
     }
   }
-  Serial.println("password cambiata");
   bip(100);
   delay(100);
   bip(100);
@@ -423,29 +561,32 @@ void bip(int durata){
 //@param stato con true la porta si chiude, con false la porta si apre
 void setPorta(bool stato){
   int posizione;
-  if (stato){
-    Serial.println("chiusura porta");
-    screen.setCursor(0,0);
-    screen.print("chiusura...");
-    statoPortaChiusura = true;
-    posizione = -2400;
-    digitalWrite(ledVerde.getPin(), LOW);
-    //salviamo nella EEPROM lo sato della porta
-    //EEPROM.write(statoPorta, 1);
-    //EEPROM.commit();
-    //bip(150);
-  }else{
-    Serial.println("apertura porta");
-    screen.setCursor(0,0);
-    screen.print("apertura...");
-    statoPortaChiusura = false;
-    posizione = 2400;
-    digitalWrite(ledRosso.getPin(), LOW);
-    //salviamo nella EEPROM lo sato della porta
-    //EEPROM.write(statoPorta, 0);
-    //EEPROM.commit();
-    //bip(150);
+  if(getPorta()){ //solo se la porta è chiusa
+    if (stato){
+        Serial.println("chiusura porta");
+        screen.setCursor(0,0);
+        screen.print("chiusura...");
+        statoPortaChiusura = true;
+        posizione = -2400;
+        digitalWrite(ledVerde.getPin(), LOW);
+        //salviamo nella EEPROM lo sato della porta
+        //EEPROM.write(statoPorta, 1);
+        //EEPROM.commit();
+        //bip(150);
+      }else{
+        Serial.println("apertura porta");
+        screen.setCursor(0,0);
+        screen.print("apertura...");
+        statoPortaChiusura = false;
+        posizione = 2400;
+        digitalWrite(ledRosso.getPin(), LOW);
+        //salviamo nella EEPROM lo sato della porta
+        //EEPROM.write(statoPorta, 0);
+        //EEPROM.commit();
+        //bip(150);
+      }
   }
+  
   stepper.move(posizione);
   // spostiamo lo stepper fino a quando non ha raggiunto la posizione
   int posizioneIniziale = stepper.currentPosition();
@@ -467,4 +608,31 @@ void setPorta(bool stato){
 //@return true=chiusa; false=aperta
 bool getPorta(){
   return !digitalRead(sensoreMagnetico);
+}
+/**
+ * funzione che data una stringa utilizza il carattere "|" per separare la stringa
+ * @return un vettore di stringhe
+ */
+String* split(const String &string){
+    int posizione = 0;
+    String content = "";
+    static String message[3] = {"", "", ""};
+    for (int i = 0; i < string.length(); i++){
+        if (string[i] == '|'){
+            if (posizione < 3) {
+                message[posizione] = content;
+                posizione++;
+            }
+            content = "";
+        } else {
+            content += string[i];
+        }
+    }
+    return message;
+}
+/**
+ * inviamo i feedback al brocker mqtt
+ */
+void sendResponse(String message){
+  client.publish("esp32/response",message.c_str());
 }
