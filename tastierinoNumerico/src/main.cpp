@@ -64,6 +64,9 @@ int statoPorta=13;
 //numero che indica il numero di volte che il codice è errato
 int reiterazioneErrore=0;
 
+//boolean che indica se l'allarme è scattato
+bool intrusion=false;
+
 const byte ROWS = 4; // four rows
 const byte COLS = 3; // four columns
 // define the cymbols on the buttons of the keypads
@@ -90,7 +93,8 @@ byte ora;
 
 // metodi
 void bip(int durata);
-void setPorta(bool stato);
+void setPorta(bool stato, bool forzato=false);
+void eseguiMovimento(int posizione);
 bool getPorta();
 String digitazioneCodice(int numeroCaratteri, int nLED);
 String digitazioneCodice(int numeroCaratteri);
@@ -145,10 +149,10 @@ void setup(){
   WiFi.begin(ssid, password);
   screen.setCursor(0, 1);
   screen.print("connessione...");
+  digitalWrite(ledGiallo.getPin(), HIGH);
   while (WiFi.status() != WL_CONNECTED){
     delay(500);
     Serial.print(".");
-    digitalWrite(ledGiallo.getPin(), HIGH);
   }
   digitalWrite(ledGiallo.getPin(), LOW);
   Serial.println("\nConnesso!");
@@ -158,6 +162,7 @@ void setup(){
   client.setCallback(callback);
   client.connect("ESP32_PortaMichele");
   client.subscribe("esp32/command");
+  sendResponse("ESP32|himself|Buongiorno!");
 }
 void loop(){
   tempoMaggioreOrario=millis();
@@ -280,9 +285,12 @@ void loop(){
     //se la porta è aperta ma è chiusa a chiave
     sendResponse("-1|porta|attivazioneAllarme apertura porta imprevista");
     interrompiLoop();
-    digitalWrite(pinCicalino, LOW);
-    setPorta(false);
-    screen.clear();
+    if(intrusion=true){ // verifichiamo che l'allarme non sia stato già interrotto in altro modo
+      setPorta(false, intrusion);
+      digitalWrite(pinCicalino, LOW);
+      screen.clear();
+      intrusion=false;
+    }
   }else {
     screen.setCursor(0, 1);
     screen.print("porta aperta    ");
@@ -325,7 +333,7 @@ void callback(char* topic, byte* message, unsigned int length) {
     String* component=split(command);
     //Verifico che il comando abbia inviato un pin esistente
     int user=checkPassword(component[0]);
-    Serial.println(component[1]);
+    Serial.println(component[1]); 
     if(user==1){
       executeCommand(component[1],"Admin");
     }else if(user=2){
@@ -336,6 +344,7 @@ void callback(char* topic, byte* message, unsigned int length) {
 }
 void executeCommand(String command, String who){
   String txt=who+"|web|";
+  Serial.println("comando: "+command);
   if(command=="CloseDoor"){
     //chiudi la porta
     setPorta(true);
@@ -356,7 +365,12 @@ void executeCommand(String command, String who){
     //comunica lo stato della porta attualmente
     String comunicazione="";
     if(statoPortaChiusura){
-      comunicazione+="la porta sta chiusa a chiave";
+      if(intrusion){
+        comunicazione+="!!ALLARME ATTIVO!!";
+      }else{
+        comunicazione+="la porta sta chiusa a chiave";
+      }
+      
     }else{
       if(getPorta()){
         comunicazione+="la porta sta chiusa ma non a chiave";
@@ -365,12 +379,22 @@ void executeCommand(String command, String who){
       }
     }
     txt+=comunicazione;
+  }else if(command.equals("InterruptAlarm")){
+    if(who.equals("Admin")){
+      if(intrusion){
+        setPorta(false, intrusion);
+        intrusion=false;
+        txt+="allarme interrotto";
+      }else{
+        txt+="allarme gia disattivato";
+      }
+    }else{
+        txt+="non hai sufficenti permessi per disattivare l'allarme";
+    }
+  }else{
+    txt+="nessuna azione corrispondente";
   }
   sendResponse(txt);
-  /*else if(command.equals("ChronDoor")){
-    //comunica la cronologia degli stati della porta
-    //PROBABILE VENGA FATTO DAL SERVER
-  }*/
 }
 void checkWiFi() {
     if (WiFi.status() != WL_CONNECTED) {
@@ -406,17 +430,21 @@ void reconnect() {
  * eseguiamo il lampeggio del led ed il suono del cicalino.
 */
  void interrompiLoop(){
+  intrusion=true;
   String code="";
-  //aspettiamo la digitazione della password amministratore
-  while(checkPassword(code)==-1){
-    //in questo modo aspettiamo la password amministratore, e facciamo lampeggiare il LED rosso con il cicalino
+  //aspettiamo la digitazione della password amministratore o l'interruzione dell'allarme da remoto
+  while(intrusion==true && checkPassword(code)==-1){
+    //in questo modo aspettiamo la password, e facciamo lampeggiare il LED rosso con il cicalino
     code=digitazioneCodice(5, 0);
   }
-  String txt="";
-  int who=checkPassword(code);
-  who == 1 ? txt+="Admin" : txt+="Guest";
-  txt+="|tastierinoEsterno|interruzioneAllarme";
-  sendResponse(txt);
+  //se l'allarme è ancora inserito vuol dire che NON è stato disattivato da remoto
+  if(intrusion=true){
+    String txt="";
+    int who=checkPassword(code);
+    who == 1 ? txt+="Admin" : txt+="Guest";
+    txt+="|tastierinoEsterno|interruzioneAllarme";
+    sendResponse(txt);
+  }
 }
 
 //metodo che fa lampeggiare un led. Va richiamato sempre in un ciclo.
@@ -426,7 +454,7 @@ void lampaeggiaLed(int nLed){
   digitalWrite(pinLED[nLed].getPin(), pinLED[nLed].getStato());
   //accendiamo il cicalino in sincronia con il LED rosso
   if(nLed==0 && !(ora >= 21 || ora <= 9)){
-    digitalWrite(pinCicalino, pinLED[nLed].getStato());
+    //digitalWrite(pinCicalino, pinLED[nLed].getStato());
   }
 }
 
@@ -443,7 +471,7 @@ String digitazioneCodice(int numeroCaratteri, int nLED){
   Serial.println("inserisci il codice:");
   tempoPassatoIngressoDigitazione=millis();
   int nColonnaSchermo=0;
-  while (code.length() < numeroCaratteri && inserimento ){
+  while (code.length() < numeroCaratteri && inserimento){
     // lampeggiamento led giallo
     tempoMaggioreLampeggio = millis();
     if (tempoMaggioreLampeggio - tempoPassatoLampeggio > 200){
@@ -452,11 +480,14 @@ String digitazioneCodice(int numeroCaratteri, int nLED){
     }
     //se il led che lampeggia corrisponde al rosso (0)
     if(nLED==0){
+      //verifico se viene usato ill'interruttore interno
       if(digitalRead(pinInterruttoreInterno)){
         for(int i=0; i<5; i++){
           code+=(char)(EEPROM.read(pGuest[i]));
         }
         return code;
+      }else if(intrusion==false){ //controllo se l'allarme sia stato interrotto in altro modo
+        inserimento=false; // interrompiamo l'inserimento
       }
     }
     // costruzione codice da verificare
@@ -470,12 +501,13 @@ String digitazioneCodice(int numeroCaratteri, int nLED){
       screen.print("*");
       nColonnaSchermo++;
       Serial.print("*");
-    }else if (charInserito == '*' || millis()-tempoPassatoIngressoDigitazione>=8000){
+    }else if (charInserito == '*' || (millis()-tempoPassatoIngressoDigitazione>=8000 && nLED!=0)){
       //interrompiamo la costruzione del codice
       inserimento = false;
     }
+    client.loop(); // controllo i messaggi da mqtt
   }
-  digitalWrite(ledGiallo.getPin(), LOW);
+  digitalWrite(pinLED[nLED].getPin(), LOW);
   return code;
 }
 
@@ -520,19 +552,19 @@ int checkPassword(String passwordToCheck){
   bool corrispondeAdmin=true, corrispondeGuest=true;
   for(int i=0; i<5; i++){
     char numero=passwordToCheck[i];
+    /*
     Serial.print("numero:");
     Serial.println(numero);
     Serial.print("admin:");
     Serial.println(EEPROM.read(pAdmin[i])-48);
     Serial.print("guest:");
     Serial.println(EEPROM.read(pGuest[i])-48);
+    */
     if(numero!=EEPROM.read(pAdmin[i]) && corrispondeAdmin){
       corrispondeAdmin=false;
-      Serial.println("errato admin");
     }
     if(numero!=EEPROM.read(pGuest[i]) && corrispondeGuest){
       corrispondeGuest=false;
-      Serial.println("errato guest");
     }
   }
   if(corrispondeAdmin){
@@ -559,34 +591,39 @@ void bip(int durata){
 
 // viene utilizzato per aprire o chiudere la porta a chiave controllando il motorino
 //@param stato con true la porta si chiude, con false la porta si apre
-void setPorta(bool stato){
+//@param forzato se ignorare lo stato della porta
+void setPorta(bool stato, bool forzato){
   int posizione;
-  if(getPorta()){ //solo se la porta è chiusa
-    if (stato){
+  if(getPorta() || forzato){ //solo se la porta è chiusa a chiave
+    if (stato && !statoPortaChiusura){
         Serial.println("chiusura porta");
         screen.setCursor(0,0);
         screen.print("chiusura...");
         statoPortaChiusura = true;
         posizione = -2400;
         digitalWrite(ledVerde.getPin(), LOW);
+        eseguiMovimento(posizione);
         //salviamo nella EEPROM lo sato della porta
         //EEPROM.write(statoPorta, 1);
         //EEPROM.commit();
         //bip(150);
-      }else{
+      }else if(!stato && statoPortaChiusura){
         Serial.println("apertura porta");
         screen.setCursor(0,0);
         screen.print("apertura...");
         statoPortaChiusura = false;
         posizione = 2400;
         digitalWrite(ledRosso.getPin(), LOW);
+        eseguiMovimento(posizione);
         //salviamo nella EEPROM lo sato della porta
         //EEPROM.write(statoPorta, 0);
         //EEPROM.commit();
         //bip(150);
       }
   }
-  
+}
+
+void eseguiMovimento(int posizione){
   stepper.move(posizione);
   // spostiamo lo stepper fino a quando non ha raggiunto la posizione
   int posizioneIniziale = stepper.currentPosition();
@@ -596,8 +633,10 @@ void setPorta(bool stato){
   //accendiamo i LED per indicare lo stato dell aporta all'esterno
   if(posizione>0){
     digitalWrite(ledVerde.getPin(), HIGH);
+    digitalWrite(ledRosso.getPin(), LOW);
   }else{
     digitalWrite(ledRosso.getPin(), HIGH);
+    digitalWrite(ledVerde.getPin(), LOW);
   }
   digitalWrite(pinUnoStepper, LOW);
   digitalWrite(pinDueStepper, LOW);
